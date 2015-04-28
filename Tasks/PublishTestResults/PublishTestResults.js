@@ -33,5 +33,5 @@ if(!matchingTestResultsFiles) {
 
 for(var i = 0; i < matchingTestResultsFiles.length; i ++) {
 	tl.debug('Reading results from: ' + matchingTestResultsFiles[i]);
-	console.log('##vso[results.publish type=JUnit]' + matchingTestResultsFiles[i]);
+	console.log('##vso[results.publish type=' + testRunner + ']' + matchingTestResultsFiles[i]);
 }
