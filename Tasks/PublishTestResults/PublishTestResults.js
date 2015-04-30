@@ -31,7 +31,4 @@ if(!matchingTestResultsFiles) {
 	onError('No test results files with search pattern ' + testResultsFiles + ' were found.');
 }
 
-for(var i = 0; i < matchingTestResultsFiles.length; i ++) {
-	tl.debug('Reading results from: ' + matchingTestResultsFiles[i]);
-	console.log('##vso[results.publish type=' + testRunner + ']' + matchingTestResultsFiles[i]);
-}
+console.log('##vso[results.publish type=' + testRunner + ';mergeResults=' + mergeResults + ']' + matchingTestResultsFiles);
