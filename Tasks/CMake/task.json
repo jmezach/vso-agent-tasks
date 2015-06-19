@@ -3,6 +3,7 @@
     "name": "CMake",
     "friendlyName": "CMake",
     "description": "Build with the CMake cross-platform build system",
+    "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkID=613719)",
     "category": "Build",
     "visibility": [
                 "Build"
@@ -14,8 +15,9 @@
     "version": {
         "Major": 1,
         "Minor": 0,
-        "Patch": 4
+        "Patch": 7
     },
+    "minimumAgentVersion": "1.83.0",
     "instanceNameFormat": "CMake $(args)",
     "inputs": [
         { 

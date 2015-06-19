@@ -4,7 +4,6 @@ function Create-Provider
           [string]$providerType)
 
     Write-Verbose "Registering provider $providerName" -Verbose
-
     $provider = Register-Provider -Name $providerName -Type $providerType -Connection $connection -ErrorAction Stop
 
     Write-Verbose "Registered provider $provider" -Verbose
@@ -21,9 +20,9 @@ function Create-ProviderData
     
     Write-Verbose "Registering provider data $providerDataName" -Verbose
 
-    $propertyBag = New-Object 'System.Collections.Generic.Dictionary[string, Microsoft.VisualStudio.Services.DevTestLabs.Model.PropertyBagData]'
-    $subscriptionIdPropertyBagData = New-Object 'Microsoft.VisualStudio.Services.DevTestLabs.Model.PropertyBagData' -ArgumentList $false, $subscriptionId
-    $propertyBag.Add("SubscriptionId", $subscriptionIdPropertyBagData)
+    $propertyBag = New-Object 'System.Collections.Generic.Dictionary[string, Microsoft.VisualStudio.Services.DevTestLabs.Model.PropertyBagData]'          
+    $property = New-Object Microsoft.VisualStudio.Services.DevTestLabs.Model.PropertyBagData($false, $subscriptionId)  
+    $propertyBag.Add("SubscriptionId", $property)  
 
     #TODO Figure out authentication mechanism and store it
     $providerData = Register-ProviderData -Name $providerDataName -Type $providerDataType -ProviderName $providerName -PropertyBagValue $propertyBag -Connection $connection -ErrorAction Stop
@@ -49,7 +48,7 @@ function Create-EnvironmentDefinition
         $csmParameters = New-Object Microsoft.VisualStudio.Services.DevTestLabs.Model.PropertyBagData($false, $csmParametersFileContent)
         $propertyBag.Add("CsmParameters", $csmParameters)
     }
-
+    
     $environmentDefinition = Register-EnvironmentDefinition -Name $environmentDefinitionName -ProviderName $providerName -PropertyBagValue $propertyBag -Connection $connection -ErrorAction Stop
 
     Write-Verbose "Registered machine group definition $environmentDefinition" -Verbose
@@ -105,11 +104,15 @@ function Create-Environment
         $propertyBag.Add($passwordTagKey, $property)
     }
     
-    Write-Verbose -Verbose "Registering machine group $environmentName"
+    $skipCACheckKey = "Microsoft-Vslabs-MG-SkipCACheck"
+    $property = New-Object Microsoft.VisualStudio.Services.DevTestLabs.Model.PropertyBagData($false, $skipCACheck)
+    $propertyBag.Add($skipCACheckKey, $property)
 
+    Write-Verbose -Verbose "Registering machine group $environmentName"
+   
     $environment = Register-Environment -Name $environmentName -Type $environmentType -Status $environmentStatus -ProviderName $providerName -ProviderDataNames $providerDataNames -EnvironmentDefinitionName $environmentDefinitionName -PropertyBagValue $propertyBag -Resources $resources -Connection $connection -ErrorAction Stop
 
-    Write-Host "Registered machine group $environment"
+    Write-Host (Get-LocalizedString -Key "Registered machine group '{0}'" -ArgumentList $environment)
 
     return $environment
 }
@@ -139,7 +142,7 @@ function Create-EnvironmentOperation
             $operationEndTime = $deploymentOperationLogs[0].EventTimestamp
             $operationStatus = $deploymentOperationLogs[0].Status
         }
-
+ 
         $envOperationId = Invoke-EnvironmentOperation -EnvironmentName $environment.Name -OperationName "CreateOrUpdate" -StartTime $operationStartTime -Connection $connection -ErrorAction Stop
 
         Create-ResourceOperations  -operationLogs $operationLogs -environment $environment -environmentOperationId $envOperationId
@@ -209,7 +212,7 @@ function Check-EnvironmentNameAvailability
             }
         }
 
-        Write-Host "Checked machine group name availability"
+        Write-Host (Get-LocalizedString -Key "Checked machine group name availability")
     }
 }
 
