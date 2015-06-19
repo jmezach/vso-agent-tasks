@@ -1,5 +1,6 @@
 param(
     [string]$solution,
+    [string]$feed,
     [ValidateSet("Restore", "Install")]
     [string]$restoreMode = "Restore",
     [string]$excludeVersion,
@@ -21,6 +22,13 @@ import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
 if(!$solution)
 {
     throw (Get-LocalizedString -Key "Solution parameter must be set")
+}
+
+if ($feed)
+{
+    # get connected service endpoint and use its Url as the source
+    $nugetFeedEndpoint = Get-ServiceEndpoint -Name $feed -Context $distributedTaskContext
+    $args = " -Source $($nugetFeedEndpoint.Url)"
 }
 
 $b_excludeVersion = Convert-String $excludeVersion Boolean
@@ -45,7 +53,7 @@ if (!$solutionFiles)
     throw (Get-LocalizedString -Key "No solution was found using search pattern '{0}'." -ArgumentList $solution)
 }
 
-$args = " -NonInteractive";
+$args = (" -NonInteractive " + $args);
 
 
 if($b_excludeVersion)
