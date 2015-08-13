@@ -9,7 +9,7 @@
     "version": {
         "Major": 0,
         "Minor": 2,
-        "Patch": 1
+        "Patch": 2
     },
     "minimumAgentVersion": "1.83.0",
     "groups": [
@@ -38,14 +38,6 @@
             "helpMarkDown": "NuGet Feed to restore packages from"
         },
         {
-            "name": "excludeVersion",
-            "type": "boolean",
-            "label": "Exclude Version",
-            "defaultValue": "false",
-            "helpMarkDown": "Makes NuGet exclude package version from package folder names. Equivilent to the -ExcludeVersion NuGet.exe command line argument",
-            "required":"false"
-        },
-        {
             "name": "noCache",
             "type": "boolean",
             "label": "Disable local cache",
@@ -59,7 +51,7 @@
             "label": "NuGet Arguments",
             "defaultValue": "",
             "required": false,
-            "helpMarkDown": "Additional arguments passed to NuGet.exe restore."
+            "helpMarkDown": "Additional arguments passed to NuGet.exe restore. [More Information](https://docs.nuget.org/consume/command-line-reference#user-content-restore-command)."
         },
         {
             "name": "nuGetPath",

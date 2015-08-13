@@ -14,7 +14,6 @@ var exec = require('child_process').exec;
 var ts = require('gulp-typescript');
 
 var _buildRoot = path.join(__dirname, '_build', 'Tasks');
-var _taskUploaderRoot = path.join(__dirname, '_build', 'TaskUploader');
 var _pkgRoot = path.join(__dirname, '_package');
 var _oldPkg = path.join(__dirname, 'Package');
 var _wkRoot = path.join(__dirname, '_working');
@@ -39,17 +38,6 @@ gulp.task('build', ['clean', 'compile'], function () {
 	shell.mkdir('-p', _buildRoot);
 	return gulp.src(path.join(__dirname, 'Tasks', '**/task.json'))
         .pipe(pkgm.PackageTask(_buildRoot));
-});
-
-gulp.task('uploader', function() {
-    var tsResult = gulp.src(['TaskUploader/*.ts', 'definitions/*.d.ts'])
-                       .pipe(ts({
-                           declarationFiles: false,
-                           noExternalResolve: true,
-						   'module': 'commonjs'
-                       }));
-    
-    tsResult.js.pipe(gulp.dest(_taskUploaderRoot));
 });
 
 gulp.task('default', ['build']);
@@ -105,6 +93,12 @@ gulp.task('package', ['zip'], function(done) {
 		return;
 	}
 
+	var nuget3Path = shell.which('nuget3');
+	if (!nuget3Path) {
+		done(new gutil.PluginError('PackageTask', 'nuget3.exe needs to be in the path.  could not find.'));
+		return;
+	}
+
 	var options = minimist(process.argv.slice(2), {});
 	var version = options.version;
 	if (!version) {
@@ -150,7 +144,7 @@ gulp.task('package', ['zip'], function(done) {
 			// publish only if version and source supplied - used by CI server that does official publish
 			if (server) {
 				var pkgLocation = path.join(_pkgRoot, pkgName + '.' + version + '.nupkg');
-				var cmdline = '"' + nugetPath + '" push ' + pkgLocation + ' -Source ' + server;
+				var cmdline = '"' + nuget3Path + '" push ' + pkgLocation + ' -Source ' + server;
 				return QExec(cmdline);				
 			}
 			else {

@@ -3,9 +3,9 @@ param(
     [string]$feed,
     [ValidateSet("Restore", "Install")]
     [string]$restoreMode = "Restore",
-    [string]$excludeVersion,
+    [string]$excludeVersion, # Support for excludeVersion has been deprecated.
     [string]$noCache,
-    [string]$nuGetArgs,
+    [string]$nuGetRestoreArgs,
     [string]$nuGetPath
 )
 
@@ -34,6 +34,12 @@ if ($feed)
 $b_excludeVersion = Convert-String $excludeVersion Boolean
 $b_noCache = Convert-String $noCache Boolean
 
+# Warn if deprecated parameters were supplied.
+if ($excludeVersion -and "$excludeVersion".ToUpperInvariant() -ne 'FALSE')
+{
+    Write-Warning (Get-LocalizedString -Key 'The Exclude Version parameter has been deprecated. Ignoring the value.')
+}
+
 # check for solution pattern
 if ($solution.Contains("*") -or $solution.Contains("?"))
 {
@@ -54,13 +60,6 @@ if (!$solutionFiles)
 }
 
 $args = (" -NonInteractive " + $args);
-
-
-if($b_excludeVersion)
-{
-    $args = (" -ExcludeVersion " + $args);
-}
-
 if($b_noCache)
 {
     $args = (" -NoCache " + $args);
@@ -71,9 +70,9 @@ if(!$nuGetPath)
     $nuGetPath = Get-ToolPath -Name 'NuGet.exe';
 }
 
-if($nuGetArgs)
+if($nuGetRestoreArgs)
 {
-    $args = ($args + " " + $nuGetArgs);
+    $args = ($args + " " + $nuGetRestoreArgs);
 }
 
 

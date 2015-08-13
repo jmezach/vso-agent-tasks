@@ -12,7 +12,7 @@
   "version": {
     "Major": 0,
     "Minor": 2,
-    "Patch": 1
+    "Patch": 2
   },
   "minimumAgentVersion": "1.83.0",
   "groups": [
@@ -39,14 +39,6 @@
       "defaultValue": "",
       "required": false,
       "helpMarkDown": "ms-resource:loc.input.help.feed"
-    },
-    {
-      "name": "excludeVersion",
-      "type": "boolean",
-      "label": "ms-resource:loc.input.label.excludeVersion",
-      "defaultValue": "false",
-      "helpMarkDown": "ms-resource:loc.input.help.excludeVersion",
-      "required": "false"
     },
     {
       "name": "noCache",
