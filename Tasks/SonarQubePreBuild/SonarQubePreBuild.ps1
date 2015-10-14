@@ -20,7 +20,12 @@ Write-Verbose -Verbose "cmdLineArgs = $cmdLineArgs"
 Write-Verbose -Verbose "configFile = $configFile"
 Write-Verbose -Verbose "dbConnectionString = $dbUrl"
 Write-Verbose -Verbose "dbUsername = $dbUsername"
-
+    
+if ($env:BUILDCONFIGURATION -ne "Release")
+{
+    Write-Host "SonarQube analysis is only run for release mode."
+    return
+}
 
 import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
 
@@ -39,11 +44,18 @@ $bootstrapperPath = [System.IO.Path]::Combine($bootstrapperDir, "MSBuild.SonarQu
 # Also, if the variable is not set, the post-test task will know that the pre-build task did not execute
 SetTaskContextVaraible "BootstrapperPath" $bootstrapperPath
 
+# Replace variables in the projectVersion parameter
+while ($projectVersion -match "\$\((\w*\.\w*)\)") {
+    $variableValue = Get-TaskVariable -Context $distributedTaskContext -Name $Matches[1]
+    $projectVersion = $projectVersion.Replace($Matches[0], $variableValue)
+    Write-Verbose "Substituting variable $($Matches[0]) with value $variableValue for parameter $projectVersion"
+}
+
 $arguments = CreateCommandLineArgs $projectKey $projectName $projectVersion $serviceEndpoint.Url $serviceEndpoint.Authorization.Parameters.UserName $serviceEndpoint.Authorization.Parameters.Password $dbUrl $dbUsername $dbPassword $cmdLineArgs $configFile
 
 
 Write-Verbose -Verbose "Executing $bootstrapperPath with arguments $arguments"
-Invoke-BatchScript $bootstrapperPath –Arguments $arguments
+Invoke-BatchScript $bootstrapperPath -Arguments $arguments
 
 
 
