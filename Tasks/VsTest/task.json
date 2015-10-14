@@ -3,7 +3,7 @@
   "name": "VSTest",
   "friendlyName": "Visual Studio Test",
   "description": "Run tests with Visual Studio test runner",
-  "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkID=613743)",
+  "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkId=624539)",
   "category": "Test",
   "visibility": [
                 "Build",
@@ -13,7 +13,7 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 17
+    "Patch": 22
   },
   "demands": [
     "vstest"
@@ -29,7 +29,7 @@
   "inputs": [
     {
       "name": "testAssembly",
-      "type": "filePath",
+      "type": "string",
       "label": "Test Assembly",
       "defaultValue": "**\\*test*.dll;-:**\\obj\\**",
       "required": true,
@@ -81,8 +81,7 @@
       "label": "Code Coverage Enabled",
       "defaultValue": "False",
       "required": false,
-      "helpMarkDown": "Collect code coverage information from the Test run.",
-      "groupName":"advanced"
+      "helpMarkDown": "Collect code coverage information from the Test run."
     },    
     {
       "name": "vsTestVersion",

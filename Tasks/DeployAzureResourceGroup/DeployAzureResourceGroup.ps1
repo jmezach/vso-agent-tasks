@@ -1,11 +1,13 @@
 param(
     [string][Parameter(Mandatory=$true)]$ConnectedServiceName,
-    [string][Parameter(Mandatory=$true)]$location,
+    [string][Parameter(Mandatory=$true)]$action,
     [string][Parameter(Mandatory=$true)]$resourceGroupName,
-    [string][Parameter(Mandatory=$true)]$csmFile,
-    [string]$winrmListeners,
+    [string]$location,
+    [string]$csmFile,
     [string]$csmParametersFile,
     [string]$overrideParameters,
+    # for preventing compat break scenarios passing below parameters also,
+    # though we don't require them in current implementation of task
     [string]$dscDeployment,
     [string]$moduleUrlParameterNames,
     [string]$sasTokenParameterNames,
@@ -15,121 +17,46 @@ param(
     [string]$skipCACheck
 )
 
-. ./AzureResourceManagerHelper.ps1
-. ./DtlServiceHelper.ps1
-. ./Utility.ps1
+Write-Verbose -Verbose "Starting Azure Resource Group Deployment Task"
+Write-Verbose -Verbose "ConnectedServiceName = $ConnectedServiceName"
+Write-Verbose -Verbose "Action = $action"
+Write-Verbose -Verbose "ResourceGroupName = $resourceGroupName"
+Write-Verbose -Verbose "Location = $location"
+Write-Verbose -Verbose "OverrideParameters = $overrideParameters"
+
+$resourceGroupName = $resourceGroupName.Trim()
+$location = $location.Trim()
+$csmFile = $csmFile.Trim()
+$csmParametersFile = $csmParametersFile.Trim()
+$overrideParameters = $overrideParameters.Trim()
+
+import-module Microsoft.TeamFoundation.DistributedTask.Task.Internal
+import-module Microsoft.TeamFoundation.DistributedTask.Task.Common
 
 $ErrorActionPreference = "Stop"
 
-Write-Verbose "Starting Azure Resource Group Deployment Task" -Verbose
-
-Write-Verbose -Verbose "SubscriptionId = $ConnectedServiceName"
-Write-Verbose -Verbose "environmentName = $resourceGroupName"
-Write-Verbose -Verbose "location = $location"
-Write-Verbose -Verbose "overrideParameters = $overrideParameters"
-Write-Verbose -Verbose "moduleUrlParameterNames = $moduleUrlParameterNames"
-Write-Verbose -Verbose "sasTokenParamterNames = $sasTokenParameterNames"
-Write-Verbose -Verbose "WinRM Listeners = $winrmListeners"
-
-import-module Microsoft.TeamFoundation.DistributedTask.Task.DevTestLabs
-import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
-import-module Microsoft.TeamFoundation.DistributedTask.Task.Common
+. ./Utility.ps1
 
 Validate-AzurePowershellVersion
 
-$winrmListeners = "none"
-#Find the matching deployment definition File
-$csmFile = Get-File $csmFile
-Write-Verbose -Verbose "deplyomentDefinitionFile = $csmFile"
+#Handle-SwitchAzureMode
+$isSwitchAzureModeRequired = Is-SwitchAzureModeRequired
 
-# csmParametersFile value would be  BUILD_SOURCESDIRECTORY when left empty in UI.
-if ($csmParametersFile -ne $env:BUILD_SOURCESDIRECTORY)
+if($isSwitchAzureModeRequired)
 {
-    #Find the matching deployment definition Parameter File
-    $csmParametersFile = Get-File $csmParametersFile
-    Write-Verbose -Verbose "deploymentDefinitionParametersFile = $csmParametersFile"
+    Switch-AzureMode AzureResourceManager
+    . ./AzureResourceManagerWrapper.ps1
 }
 
-Validate-DeploymentFileAndParameters -csmFile $csmFile -csmParametersFile $csmParametersFile
+. ./AzureResourceManagerHelper.ps1
 
-Validate-Credentials -vmCreds $vmCreds -vmUserName $vmUserName -vmPassword $vmPassword
-
-$csmFileName = [System.IO.Path]::GetFileNameWithoutExtension($csmFile)
-$csmFileContent = [System.IO.File]::ReadAllText($csmFile)
-
-if(Test-Path -Path $csmParametersFile -PathType Leaf)
+if( $action -eq "Create Or Update Resource Group" )
 {
-    $csmParametersFileContent = [System.IO.File]::ReadAllText($csmParametersFile)
+    Create-AzureResourceGroupHelper -csmFile $csmFile -csmParametersFile $csmParametersFile -resourceGroupName $resourceGroupName -location $location -overrideParameters $overrideParameters -isSwitchAzureModeRequired $isSwitchAzureModeRequired
+}
+else
+{
+    Perform-Action -action $action -resourceGroupName $resourceGroupName
 }
 
-Check-EnvironmentNameAvailability -environmentName $resourceGroupName
-
-$parametersObject = Get-CsmParameterObject -csmParameterFileContent $csmParametersFileContent
-$parametersObject = Refresh-SASToken -moduleUrlParameterNames $moduleUrlParameterNames -sasTokenParameterNames $sasTokenParameterNames -csmParametersObject $parametersObject -subscriptionId $ConnectedServiceName -dscDeployment $dscDeployment
-
-Switch-AzureMode AzureResourceManager
-
-if ($winrmListeners -eq "winrmhttps")
-{
-    if([string]::IsNullOrEmpty($azureKeyVaultName) -eq $true)
-    {
-        Write-Verbose -Verbose "AzureKeyVaultName not specified, generating a random vault name"
-        $randomString = Get-RandomString
-        $azureKeyVaultName = "vault-" + $randomString
-    }
-
-    Write-Verbose -Verbose "AzureKeyVaultName = $azureKeyVaultName"
-
-    if([string]::IsNullOrEmpty($azureKeyVaultSecretName) -eq $true)
-    {
-        Write-Verbose -Verbose "AzureKeyVaultSecretName not specified, generating a random secret name"
-        $randomString = Get-RandomString
-        $azureKeyVaultSecretName = "secret-" + $randomString
-    }
-
-    Write-Verbose -Verbose "AzureKeyVaultSecretName = $azureKeyVaultSecretName"
-
-    $azureKeyVaultSecretId = Upload-CertificateOnAzureKeyVaultAsSecret -certificatePath $certificatePath -certificatePassword $certificatePassword -resourceGroupName $resourceGroupName -location $location -azureKeyVaultName $azureKeyVaultName -azureKeyVaultSecretName $azureKeyVaultSecretName
-}
-
-if($winrmListeners -ne "none")
-{
-    #Storing in temp variable so that we can cleanup Temp file later on
-    $tempFile = Create-CSMForWinRMConfiguration -baseCsmFileContent $csmFileContent -winrmListeners $winrmListeners -resourceGroupName $resourceGroupName -azureKeyVaultName $azureKeyVaultName -azureKeyVaultSecretId $azureKeyVaultSecretId
-
-    if([string]::IsNullOrEmpty($tempFile) -eq $false)
-    {
-        $csmFile = $tempFile
-    }
-}
-
-$subscription = Get-SubscriptionInformation -subscriptionId $ConnectedServiceName
-
-$resourceGroupDeployment = Create-AzureResourceGroup -csmFile $csmFile -csmParametersObject $parametersObject -resourceGroupName $resourceGroupName -location $location -overrideParameters $overrideParameters
-
-if([string]::IsNullOrEmpty($tempFile) -eq $false)
-{
-    Write-Verbose -Verbose "Removing temp file $tempFile"
-    Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-}
-
-Initialize-DTLServiceHelper
-
-$provider = Create-Provider -providerName "AzureResourceGroupManagerV2" -providerType "Microsoft Azure Compute Resource Provider"
-
-$providerData = Create-ProviderData -providerName $provider.Name -providerDataName $subscription.SubscriptionName -providerDataType $subscription.Environment -subscriptionId $subscription.SubscriptionId
-
-$environmentDefinitionName = [System.String]::Format("{0}_{1}", $csmFileName, $env:BUILD_BUILDNUMBER)
-
-$environmentDefinition = Create-EnvironmentDefinition -environmentDefinitionName $environmentDefinitionName -providerName $provider.Name
-
-$providerDataNames = New-Object System.Collections.Generic.List[string]
-$providerDataNames.Add($providerData.Name)
-
-$environmentResources = Get-Resources -resourceGroupName $resourceGroupName
-
-$environment = Create-Environment -environmentName $resourceGroupName -environmentType "Azure CSM V2" -environmentStatus $resourceGroupDeployment.ProvisioningState -providerName $provider.Name -providerDataNames $providerDataNames -environmentDefinitionName $environmentDefinition.Name -resources $environmentResources
-
-$environmentOperationId = Create-EnvironmentOperation -environment $environment
-
-Write-Verbose "Completing Azure Resource Group Deployment Task" -Verbose
+Write-Verbose -Verbose "Completing Azure Resource Group Deployment Task"

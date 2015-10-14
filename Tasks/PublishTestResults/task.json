@@ -6,13 +6,14 @@
   "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkID=613742)",
   "category": "Test",
   "visibility": [
-                  "Build"
-                ],  
+                "Build",
+                "Release"
+                  ],
   "author": "Microsoft Corporation",
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 5
+    "Patch": 7
   },
   "demands": [ 
   ], 
@@ -35,8 +36,9 @@
       "options": {
           "JUnit":"JUnit",
           "VSTest":"VSTest",
-          "NUnit":"NUnit"
-        }
+          "NUnit":"NUnit",
+          "XUnit":"XUnit"
+      }
     },
     {
       "name": "testResultsFiles",

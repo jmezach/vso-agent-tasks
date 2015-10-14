@@ -13,16 +13,16 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 14
+    "Patch": 17
   },
   "demands": [
     "azureps"
   ],
-  "minimumAgentVersion": "1.83.0",
+  "minimumAgentVersion": "1.90.0",
   "inputs": [
     {
       "name": "ConnectedServiceName",
-      "type": "connectedService:Azure",
+      "type": "connectedService:Azure:Certificate,UsernamePassword",
       "label": "Azure Subscription",
       "defaultValue": "",
       "required": true,
@@ -53,7 +53,7 @@
     },
     {
       "name": "CsPkg",
-      "type": "string",
+      "type": "filePath",
       "label": "CsPkg",
       "defaultValue": "",
       "required": true,
@@ -61,7 +61,7 @@
     },
     {
       "name": "CsCfg",
-      "type": "string",
+      "type": "filePath",
       "label": "CsCfg",
       "defaultValue": "",
       "required": true,
@@ -102,7 +102,7 @@
   "sourceDefinitions": [
     {
         "target": "StorageAccount",
-        "endpoint": "https://management.core.windows.net/$(ConnectedServiceName)/services/storageservices",
+        "endpoint": "https://management.core.windows.net/$(authKey.SubscriptionId)/services/storageservices",
         "selector": "xpath://ServiceName",
         "authKey": "$(ConnectedServiceName)"
     },

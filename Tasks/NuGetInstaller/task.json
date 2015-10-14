@@ -9,7 +9,7 @@
     "version": {
         "Major": 0,
         "Minor": 2,
-        "Patch": 2
+        "Patch": 3
     },
     "minimumAgentVersion": "1.83.0",
     "groups": [
@@ -42,7 +42,7 @@
             "type": "boolean",
             "label": "Disable local cache",
             "defaultValue": "false",
-            "helpMarkDown": "Equivalent to the -NoCache NuGet.exe commanline argument",
+            "helpMarkDown": "Equivalent to the -NoCache NuGet.exe command line argument",
             "required":"false"
         },
         {

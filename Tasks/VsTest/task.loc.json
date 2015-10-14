@@ -16,7 +16,7 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 17
+    "Patch": 22
   },
   "demands": [
     "vstest"
@@ -32,7 +32,7 @@
   "inputs": [
     {
       "name": "testAssembly",
-      "type": "filePath",
+      "type": "string",
       "label": "ms-resource:loc.input.label.testAssembly",
       "defaultValue": "**\\*test*.dll;-:**\\obj\\**",
       "required": true,
@@ -84,8 +84,7 @@
       "label": "ms-resource:loc.input.label.codeCoverageEnabled",
       "defaultValue": "False",
       "required": false,
-      "helpMarkDown": "ms-resource:loc.input.help.codeCoverageEnabled",
-      "groupName": "advanced"
+      "helpMarkDown": "ms-resource:loc.input.help.codeCoverageEnabled"
     },
     {
       "name": "vsTestVersion",

@@ -16,16 +16,16 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 15
+    "Patch": 18
   },
   "demands": [
     "azureps"
   ],
-  "minimumAgentVersion": "1.83.0",
+  "minimumAgentVersion": "1.90.0",
   "inputs": [
     {
       "name": "ConnectedServiceName",
-      "type": "connectedService:Azure",
+      "type": "connectedService:Azure:Certificate,UsernamePassword",
       "label": "ms-resource:loc.input.label.ConnectedServiceName",
       "defaultValue": "",
       "required": true,
@@ -74,7 +74,7 @@
     },
     {
       "name": "Package",
-      "type": "string",
+      "type": "filePath",
       "label": "ms-resource:loc.input.label.Package",
       "defaultValue": "",
       "helpMarkDown": "ms-resource:loc.input.help.Package",
@@ -91,7 +91,7 @@
   "sourceDefinitions": [
     {
       "target": "WebSiteName",
-      "endpoint": "https://management.core.windows.net/$(ConnectedServiceName)/services/webspaces/$(WebSiteLocation)Webspace/sites",
+      "endpoint": "https://management.core.windows.net/$(authKey.SubscriptionId)/services/webspaces/$(WebSiteLocation)Webspace/sites",
       "selector": "xpath://Site/Name",
       "authKey": "$(ConnectedServiceName)"
     }

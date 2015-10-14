@@ -3,13 +3,32 @@ function Validate-AzurePowershellVersion
     $currentVersion =  Get-AzureCmdletsVersion
     $minimumAzureVersion = New-Object System.Version(0, 9, 0)
     $versionCompatible = Get-AzureVersionComparison -AzureVersion $currentVersion -CompareVersion $minimumAzureVersion
-    
+
     if(!$versionCompatible)
     {
-        Throw (Get-LocalizedString -Key "The required minimum version {0} of the Azure Powershell Cmdlets are not installed. You can follow the instructions at http://azure.microsoft.com/en-in/documentation/articles/powershell-install-configure/ to get the latest Azure powershell" -ArgumentList $minimumAzureVersion)
-    }
+        Throw (Get-LocalizedString -Key "The required minimum version {0} of the Azure Powershell Cmdlets are not installed. You can follow the instructions at {1} to get the latest Azure powershell" -ArgumentList $minimumAzureVersion, "http://aka.ms/azps")    }
 
     Write-Verbose -Verbose "Validated the required azure powershell version"
+}
+
+function Is-SwitchAzureModeRequired
+{
+    $currentVersion =  Get-AzureCmdletsVersion
+    $minimumAzureVersion = New-Object System.Version(0, 9, 9)
+    $versionCompatible = Get-AzureVersionComparison -AzureVersion $currentVersion -CompareVersion $minimumAzureVersion
+
+    if(!$versionCompatible)
+    {
+        Write-Verbose -Verbose "Switch Azure Mode is required"
+        return $true
+    }
+    
+    if(!(Get-Module -Name "AzureRM" -ListAvailable))
+    {
+        throw (Get-LocalizedString -Key "The required AzureRM Powershell module is not installed. You can follow the instructions at {0} to get the latest Azure powershell" -ArgumentList "http://aka.ms/azps")
+    }
+       
+    return $false
 }
 
 function Get-SingleFile($files, $pattern)
@@ -32,7 +51,6 @@ function Get-SingleFile($files, $pattern)
 function Get-File($pattern)
 {
     #Find the File based on pattern
-
     Write-Verbose -Verbose "Finding files based on $pattern"
     $filesMatchingPattern = Find-Files -SearchPattern "$pattern"
 
@@ -54,7 +72,7 @@ function Validate-DeploymentFileAndParameters
         throw (Get-LocalizedString -Key "Please specify a complete and a valid template file path")
     }
 
-    if ($csmParametersFile -ne $env:BUILD_SOURCESDIRECTORY -and !(Test-Path -Path $csmParametersFile -PathType Leaf))
+    if ($csmParametersFile -ne $env:BUILD_SOURCESDIRECTORY -and $csmParametersFile -ne [String]::Concat($env:BUILD_SOURCESDIRECTORY, "\") -and !(Test-Path -Path $csmParametersFile -PathType Leaf))
     {
          throw (Get-LocalizedString -Key "Please specify a complete and a valid template parameters file path")
     }
@@ -70,7 +88,7 @@ function Get-CsmParameterObject
 
         $csmJObject = [Newtonsoft.Json.Linq.JObject]::Parse($csmParameterFileContent)
         $newParametersObject = New-Object System.Collections.Hashtable([System.StringComparer]::InvariantCultureIgnoreCase)
-        
+
         if($csmJObject.ContainsKey("parameters") -eq $true)
         {
             $parameters = $csmJObject.GetValue("parameters")
@@ -93,257 +111,155 @@ function Get-CsmParameterObject
     }
 }
 
-function Validate-Credentials
+function Perform-Action
 {
-    param([string]$vmCreds,
-          [string]$vmUserName,
-          [string]$vmPassword)
+    param([string]$action,
+          [string]$resourceGroupName)
 
-    if ($vmCreds -eq "true")
+    Switch ($Action)
     {
-        if([string]::IsNullOrEmpty($vmUserName) -eq $true)
-        {
-            throw (Get-LocalizedString -Key "Please specify valid username")
-        }
+          { @("Start", "Stop", "Restart", "Delete") -contains $_ } {
+             Invoke-OperationHelper -resourceGroupName $resourceGroupName -operationName $action
+             break
+          }
 
-        if([string]::IsNullOrEmpty($vmPassword) -eq $true)
-        {
-            throw (Get-LocalizedString -Key "Please specify valid password")
-        }
-    }
+          "DeleteRG" {
+             Delete-MachineGroupHelper -resourceGroupName $resourceGroupName
+             break
+          }
 
-}
-
-function Validate-AzureKeyVaultSecret
-{
-    param([string]$certificatePath,
-          [string]$certificatePassword)
-
-    if (([string]::IsNullOrEmpty($certificatePath) -eq $true) -or (-Not (Test-Path $certificatePath -pathType leaf)))
-    {
-        throw (Get-LocalizedString -Key "Please specify valid certificate path")
-    }
-
-    if([string]::IsNullOrEmpty($certificatePassword) -eq $true)
-    {
-        throw (Get-LocalizedString -Key "Please specify valid certificate password")
-    }
-
-    if([System.IO.Path]::GetExtension($certificatePath) -ne ".pfx")
-    {
-        throw (Get-LocalizedString -Key "Please specify pfx certificate file")
+         default { throw (Get-LocalizedString -Key "Action '{0}' is not supported on the provider '{1}'" -ArgumentList $action, "Azure") }
     }
 }
 
-function Upload-CertificateOnAzureKeyVaultAsSecret
+function Invoke-OperationHelper
 {
-    param([string]$certificatePath,
-    [string]$certificatePassword,
-    [string]$resourceGroupName,
-    [string]$location,
-    [string]$azureKeyVaultName,
-    [string]$azureKeyVaultSecretName)
+     param([string]$resourceGroupName,
+           [string]$operationName)
 
-    #Find the matching certificate File
-    $certificatePath = Get-File $certificatePath
-    Write-Verbose -Verbose "CertificatePath = $certificatePath"
+    Write-Verbose "Entered perform action $operationName on machines for resource group $resourceGroupName" -Verbose
 
-    Validate-AzureKeyVaultSecret -certificatePath $certificatePath -certificatePassword $certificatePassword
+    $machines = Get-AzureMachinesInResourceGroup -resourceGroupName $resourceGroupName
 
-    Create-AzureResourceGroupIfNotExist -resourceGroupName $resourceGroupName -location $location
-
-    Create-AzureKeyVaultIfNotExist -azureKeyVaultName $azureKeyVaultName -ResourceGroupName $resourceGroupName -Location $location
-
-    $secretValue = Get-SecretValueForAzureKeyVault -certificatePath $certificatePath -certificatePassword $certificatePassword
-
-    $azureKeyVaultSecret = Create-AzureKeyVaultSecret -azureKeyVaultName $azureKeyVaultName -secretName $azureKeyVaultSecretName -secretValue $secretValue
-
-    $azureKeyVaultSecretId = $azureKeyVaultSecret.Id
-
-    return $azureKeyVaultSecretId
-}
-
-function Create-CSMForWinRMConfiguration
-{
-    param([string]$baseCsmFileContent,
-          [string]$winrmListeners,
-          [string]$resourceGroupName,
-          [string]$azureKeyVaultName,
-          [string]$azureKeyVaultSecretId)
-
-    $csmJTokenObject = [Newtonsoft.Json.Linq.JToken]::Parse($baseCsmFileContent)
-    $virtualMachineResources = $csmJTokenObject.SelectToken("resources") | Where-Object { $_["type"].Value -eq "Microsoft.Compute/virtualMachines" }
-    if($virtualMachineResources -eq $null)
+    if(! $machines)
     {
-        Write-Warning (Get-LocalizedString -Key "No virtual Machine Resource found in the deployment template, can't add WinRm Configuration Node")
+        Write-Verbose "Resource group $resourceGroupName has no machines in it" -Verbose
         return
     }
 
-    Write-Verbose -Verbose "Generating deployment template for WinRM configuration from base template file"
-    Write-Verbose -Verbose "azureKeyVaultName : $azureKeyVaultName"
-    Write-Verbose -Verbose "azureKeyVaultSecretId : $azureKeyVaultSecretId"
+    Foreach($machine in $machines)
+    {
+        $machineName = $machine.Name
+        $response = Invoke-OperationOnProvider -resourceGroupName $resourceGroupName -machineName $machine.Name -operationName $operationName
+
+        if($response.Status -ne "Succeeded")
+        {
+            Write-Error (Get-LocalizedString -Key "Operation '{0}' failed on the machine '{1}'" -ArgumentList $operationName, $machine.Name)
+            throw $response.Error
+        }
+        else
+        {
+            Write-Verbose "'$operationName' operation on the machine '$machineName' succeeded" -Verbose
+        }
+        
+        Write-Verbose "Call to provider to perform operation '$operationName' on the machine '$machineName' completed" -Verbose
+    }
+}
+
+function Invoke-OperationOnProvider
+{
+    param([string]$resourceGroupName,
+          [string]$machineName,
+          [string]$operationName)
     
-    # TODO: Explore to avoid if/else statement, didn't find better way to check if virtualMachineResources is returning as array or single item
-    if ($virtualMachineResources -is [system.array])
+    # Performs the operation on provider based on the operation name.
+    Switch ($operationName)
     {
-        Write-Verbose -Verbose "Found $($virtualMachineResources.Count) Virtual Machine resources in the deployment template"
-
-        Foreach($virtualMachineResource in $virtualMachineResources)
-        {
-            Add-NodesForWinRmConfiguration -jtokenObject $virtualMachineResource -resourceGroupName $resourceGroupName -winrmListeners $winrmListeners -azureKeyVaultName $azureKeyVaultName -azureKeyVaultSecretId $azureKeyVaultSecretId
-        }
-    }
-    else
-    {
-        Write-Verbose -Verbose "Found single Virtual Machine resource in the deployment template"
-
-        Add-NodesForWinRmConfiguration -jtokenObject $virtualMachineResources -resourceGroupName $resourceGroupName -winrmListeners $winrmListeners -azureKeyVaultName $azureKeyVaultName -azureKeyVaultSecretId $azureKeyVaultSecretId
-    }
-
-    $tempFile = [System.IO.Path]::GetTempFileName()
-    Write-Verbose -Verbose "Created temp file $tempFile for template with WinRM configuration support"
-    $csmJTokenObject.ToString() > $tempFile
-
-    return $tempFile;
-}
-
-function Add-NodesForWinRmConfiguration
-{
-    param([Newtonsoft.Json.Linq.JObject]$jtokenObject,
-          [string]$resourceGroupName,
-          [string]$winrmListeners,
-          [string]$azureKeyVaultName,
-          [string]$azureKeyVaultSecretId)
-
-    $osProfile = $jtokenObject.SelectToken("properties.osProfile")
-    if($osProfile -eq $null)
-    {
-        Write-Warning (Get-LocalizedString -Key "No 'osProfile' found in Virtual Machine Resource, can't add WinRm Configuration Node'")
-        return
-    }
-
-    if($winrmListeners -eq "winrmhttps")
-    {
-        Add-SecretsNode -jtokenObject $jtokenObject -resourceGroupName $resourceGroupName -azureKeyVaultName $azureKeyVaultName -azureKeyVaultSecretId $azureKeyVaultSecretId
-    }
-
-    Add-WindowsConfigurationNode -jtokenObject $jtokenObject -winrmListeners $winrmListeners -azureKeyVaultSecretId $azureKeyVaultSecretId
-
-    Write-Verbose -Verbose "Update OSProfile Node $osProfile"
-}
-
-function Add-SecretsNode
-{
-    param([Newtonsoft.Json.Linq.JObject]$jtokenObject,
-          [string]$resourceGroupName,
-          [string]$azureKeyVaultName,
-          [string]$azureKeyVaultSecretId)
-
-    if($jtokenObject.SelectToken("properties.osProfile.secrets") -eq $null)
-    {
-        Write-Verbose -Verbose "No 'secrets' node found in virtual machine resource"
-        $jArrayObject = New-Object 'Newtonsoft.Json.Linq.JArray'
-        $jtokenObject.properties.osProfile.Add("secrets", $jArrayObject)
-    }
-
-    $secretsJson = "{
-                ""sourceVault"": {
-                    ""id"": ""[resourceId('$resourceGroupName', 'Microsoft.KeyVault/vaults', '$azureKeyVaultName')]""
-                  },
-                  ""vaultCertificates"": [
-                    {
-                      ""certificateUrl"": ""$azureKeyVaultSecretId"",
-                      ""certificateStore"": ""My""
-                    }
-                  ]
-           }"
-
-    $secretsJObject = [Newtonsoft.Json.Linq.JToken]::Parse($secretsJson)
-    $jtokenObject.properties.osProfile.secrets.Add($secretsJObject)
-    Write-Verbose -Verbose "Added 'secrets' node for WinRM configuration"
-}
-
-function Add-WindowsConfigurationNode
-{
-    param([Newtonsoft.Json.Linq.JObject]$jtokenObject,
-          [string]$winrmListeners,
-          [string]$azureKeyVaultSecretId)
-
-    if($jtokenObject.SelectToken("properties.osProfile.windowsConfiguration") -eq $null)
-    {
-        Write-Verbose -Verbose "No 'windowsConfiguration' node found in virtual machine resource"
-        $jObject = New-Object 'Newtonsoft.Json.Linq.JObject'
-        $jtokenObject.properties.osProfile.Add("windowsConfiguration", $jObject)
-    }
-
-    $jtokenObject.properties.osProfile.windowsConfiguration["provisionVMAgent"] = '"true"'
-    $jtokenObject.properties.osProfile.windowsConfiguration["enableAutomaticUpdates"] = '"true"'
-    if($jtokenObject.SelectToken("properties.osProfile.windowsConfiguration.winRM") -eq $null)
-    {
-        Write-Verbose -Verbose "No 'winRM' node found under windowsConfiguration node"
-        $jWinRmObject = New-Object 'Newtonsoft.Json.Linq.JObject'
-        $jtokenObject.properties.osProfile.windowsConfiguration.Add("winRM", $jWinRmObject)
-    }
-
-    $winrmHttpListenerJson = "{
-                              ""protocol"": ""http""
-                              }"
-
-    $winrmHttpsListenerJson = "{
-                              ""protocol"": ""https"",
-                              ""certificateUrl"": ""$azureKeyVaultSecretId""
-                               }"
-
-    Switch ($winrmListeners)
-    {
-         "winrmhttp" {
-             $winrmListenersJObject=[Newtonsoft.Json.Linq.JToken]::Parse($winrmHttpListenerJson)
+         "Start" {
+             $response = Start-MachineInProvider -resourceGroupName $resourceGroupName -machineName $machineName
          }
 
-         "winrmhttps" {
-             $winrmListenersJObject=[Newtonsoft.Json.Linq.JToken]::Parse($winrmHttpsListenerJson)
+         "Stop" {
+             $response = Stop-MachineInProvider -resourceGroupName $resourceGroupName -machineName $machineName
+         }
+
+         "Restart" {            
+             $response = Stop-MachineInProvider -resourceGroupName $resourceGroupName -machineName $machineName             
+
+             if($response.Status -eq "Succeeded")
+             {
+                $response = Start-MachineInProvider -resourceGroupName $resourceGroupName -machineName $machineName
+             }         
+         }
+
+         "Delete" {
+             $response = Delete-MachineFromProvider -resourceGroupName $resourceGroupName -machineName $machineName
          }
 
          default {
-              Write-Error (Get-LocalizedString -Key "Invalid WinRM Listeners: {0}." -ArgumentList $winrmListeners)
-         }
+              throw (Get-LocalizedString -Key "Tried to invoke an invalid operation: '{0}'" -ArgumentList $operationName)
+         }         
     }
 
-    if($jtokenObject.SelectToken("properties.osProfile.windowsConfiguration.winRM.Listeners") -eq $null)
+    $response
+}
+
+function Delete-MachineGroupHelper
+{
+    param([string]$resourceGroupName)
+
+    Write-Verbose "Entered delete resource group helper for resource group $resourceGroupName" -Verbose
+
+    Delete-MachineGroupFromProvider -resourceGroupName $resourceGroupName
+}
+
+function Get-CsmAndParameterFiles
+{
+    param([string] $csmFile,
+          [string] $csmParametersFile)
+
+    #Find the matching deployment definition File
+    $csmFile = Get-File $csmFile
+    Write-Verbose -Verbose "deploymentDefinitionFile = $csmFile"
+
+    # csmParametersFile value would be  BUILD_SOURCESDIRECTORY when left empty in UI.
+    if ($csmParametersFile -ne $env:BUILD_SOURCESDIRECTORY -and $csmParametersFile -ne [String]::Concat($env:BUILD_SOURCESDIRECTORY, "\"))
     {
-        Write-Verbose -Verbose "No WinRM Listeners node found under windowsConfiguration node"
-        $jArrayObject = New-Object 'Newtonsoft.Json.Linq.JArray'
-        $jtokenObject.properties.osProfile.windowsConfiguration.winRM.Add("Listeners", $jArrayObject)
+        #Find the matching deployment definition Parameter File
+        $csmParametersFile = Get-File $csmParametersFile
+        Write-Verbose -Verbose "deploymentDefinitionParametersFile = $csmParametersFile"
     }
 
-    $jtokenObject.properties.osProfile.windowsConfiguration.winRM.Listeners.Add($winrmListenersJObject)
-    Write-Verbose -Verbose "Added 'windowsConfiguration' node for WinRM configuration"
+    Validate-DeploymentFileAndParameters -csmFile $csmFile -csmParametersFile $csmParametersFile
+
+    @{"csmFile" = $($csmFile); "csmParametersFile" = $($csmParametersFile)}
 }
 
-function Get-RandomString
+function Create-AzureResourceGroupHelper
 {
-    return [guid]::NewGuid().ToString("N").Substring(0,17)
-}
+    param([string] $csmFile,
+          [string] $csmParametersFile,
+          [string] $resourceGroupName,
+          [string] $location,
+          [string] $overrideParameters,
+          [bool] $isSwitchAzureModeRequired)
 
-function Get-SecretValueForAzureKeyVault
-{
-    param([string]$certificatePath,
-          [string]$certificatePassword)
+    $csmFileName = [System.IO.Path]::GetFileNameWithoutExtension($csmFile)
 
-    $fileContentBytes = Get-Content $certificatePath -Encoding Byte
-    $fileContentEncoded = [System.Convert]::ToBase64String($fileContentBytes)
+    #Create csm parameter object
+    $csmAndParameterFiles = Get-CsmAndParameterFiles -csmFile $csmFile -csmParametersFile $csmParametersFile
 
-    $jsonObject = "
+    if ($csmParametersFile -ne $env:BUILD_SOURCESDIRECTORY -and $csmParametersFile -ne [String]::Concat($env:BUILD_SOURCESDIRECTORY, "\"))
     {
-    ""data"": ""$filecontentencoded"",
-    ""dataType"" :""pfx"",
-    ""password"": ""$certificatePassword""
-    }"
+        $csmParametersFileContent = [System.IO.File]::ReadAllText($csmAndParameterFiles["csmParametersFile"])
+    }
+    else
+    {
+        $csmParametersFileContent = [String]::Empty
+    }
 
-    $jsonObjectBytes = [System.Text.Encoding]::UTF8.GetBytes($jsonObject)
-    $jsonEncoded = [System.Convert]::ToBase64String($jsonObjectBytes)
+    $parametersObject = Get-CsmParameterObject -csmParameterFileContent $csmParametersFileContent
 
-    $secret = ConvertTo-SecureString -String $jsonEncoded -AsPlainText –Force
-
-    return $secret
+    # Create azure resource group
+    $resourceGroupDeployment = Create-AzureResourceGroup -csmFile $csmAndParameterFiles["csmFile"] -csmParametersObject $parametersObject -resourceGroupName $resourceGroupName -location $location -overrideParameters $overrideParameters -isSwitchAzureModeRequired $isSwitchAzureModeRequired
 }

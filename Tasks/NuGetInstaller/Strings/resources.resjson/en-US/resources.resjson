@@ -12,7 +12,7 @@
   "loc.input.label.feed": "NuGet Feed",
   "loc.input.help.feed": "NuGet Feed to restore packages from",
   "loc.input.label.noCache": "Disable local cache",
-  "loc.input.help.noCache": "Equivalent to the -NoCache NuGet.exe commanline argument",
+  "loc.input.help.noCache": "Equivalent to the -NoCache NuGet.exe command line argument",
   "loc.input.label.nuGetRestoreArgs": "NuGet Arguments",
   "loc.input.help.nuGetRestoreArgs": "Additional arguments passed to NuGet.exe restore. [More Information](https://docs.nuget.org/consume/command-line-reference#user-content-restore-command).",
   "loc.input.label.nuGetPath": "Path to NuGet.exe",

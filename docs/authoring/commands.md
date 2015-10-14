@@ -127,6 +127,26 @@ The general format for a logging command is:
                 </p>
             </td>
         </tr>
+        <tr>
+            <td>
+                <p align="left">
+                    ##vso[task.addattachment]value
+                </p>
+            </td>
+            <td>
+                <p align="left">
+                    type=attachment type (Required) <br>
+                    name=attachment name (Required) <br>
+                </p>
+            </td>
+            <td>
+                <p align="left">
+                    Upload and attach attachment to current timeline record. <br>
+                    Example: <br>
+					##vso[task.addattachment type=myattachmenttype;name=myattachmentname;]c:\myattachment.txt<br> 
+                </p>
+            </td>
+        </tr>
     </tbody>
 </table>
 
@@ -226,6 +246,23 @@ The general format for a logging command is:
                     Upload customized summary.md to build’s container “summaries” folder.<br>
                     Example: <br>
                     ##vso[build.uploadsummary]c:\testsummary.md
+                </p>
+            </td>
+        </tr><tr>
+            <td>
+                <p align="left">
+                    ##vso[build.updatebuildnumber]build number
+                </p>
+            </td>
+            <td>
+                <p align="left">
+                </p>
+            </td>
+            <td>
+                <p align="left">
+                    Update build number for current build.<br>
+                    Example: <br>
+                    ##vso[build.updatebuildnumber]my-new-build-number
                 </p>
             </td>
         </tr>

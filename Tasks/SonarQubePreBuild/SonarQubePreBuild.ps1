@@ -13,14 +13,13 @@ param(
 
 Write-Verbose "Starting SonarQube Pre-Build Setup Step"
 
-Write-Verbose -Verbose "connectedServiceName = $connectedServiceName"
-Write-Verbose -Verbose "projectKey = $projectKey"
-Write-Verbose -Verbose "projectName = $projectName"
-Write-Verbose -Verbose "cmdLineArgs = $cmdLineArgs"
-Write-Verbose -Verbose "configFile = $configFile"
-Write-Verbose -Verbose "dbConnectionString = $dbUrl"
-Write-Verbose -Verbose "dbUsername = $dbUsername"
-    
+Write-Verbose "connectedServiceName = $connectedServiceName"
+Write-Verbose "projectKey = $projectKey"
+Write-Verbose "projectName = $projectName"
+Write-Verbose "cmdLineArgs = $cmdLineArgs"
+Write-Verbose "configFile = $configFile"
+Write-Verbose "dbConnectionString = $dbUrl"
+
 if ($env:BUILDCONFIGURATION -ne "Release")
 {
     Write-Host "SonarQube analysis is only run for release mode."
@@ -28,21 +27,22 @@ if ($env:BUILDCONFIGURATION -ne "Release")
 }
 
 import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
+. ./SonarQubePreBuildImpl.ps1
 
-. ./SonarQubeHelper.ps1
 
 $serviceEndpoint = GetEndpointData $connectedServiceName
+Write-Verbose "serverUrl = $($serviceEndpoint.Url)"
 
-Write-Verbose -Verbose "serverUrl = $($serviceEndpoint.Url)"
-Write-Verbose -Verbose "serverUsername = $($serviceEndpoint.Authorization.Parameters.UserName)"
+$cmdLineArgs = UpdateArgsForPullRequestAnalysis $cmdLineArgs $serviceEndpoint
+Write-Verbose -Verbose $cmdLineArgs
 
 $currentDir = (Get-Item -Path ".\" -Verbose).FullName
-$bootstrapperDir = [System.IO.Path]::Combine($currentDir, "MSBuild.SonarQube.Runner-1.0") # the MSBuild.SonarQube.Runner is version specific
+$bootstrapperDir = [System.IO.Path]::Combine($currentDir, "MSBuild.SonarQube.Runner-1.0.1") # the MSBuild.SonarQube.Runner is version specific
 $bootstrapperPath = [System.IO.Path]::Combine($bootstrapperDir, "MSBuild.SonarQube.Runner.exe")
 
 # Set the path as context variable so that the post-test task will be able to read it and not compute it again;
 # Also, if the variable is not set, the post-test task will know that the pre-build task did not execute
-SetTaskContextVaraible "BootstrapperPath" $bootstrapperPath
+SetTaskContextVariable "MsBuild.SonarQube.BootstrapperPath" $bootstrapperPath
 
 # Replace variables in the projectVersion parameter
 while ($projectVersion -match "\$\((\w*\.\w*)\)") {
@@ -51,11 +51,10 @@ while ($projectVersion -match "\$\((\w*\.\w*)\)") {
     Write-Verbose "Substituting variable $($Matches[0]) with value $variableValue for parameter $projectVersion"
 }
 
+StoreSensitiveParametersInTaskContext $serviceEndpoint.Authorization.Parameters.UserName $serviceEndpoint.Authorization.Parameters.Password $dbUsername $dbPassword
 $arguments = CreateCommandLineArgs $projectKey $projectName $projectVersion $serviceEndpoint.Url $serviceEndpoint.Authorization.Parameters.UserName $serviceEndpoint.Authorization.Parameters.Password $dbUrl $dbUsername $dbPassword $cmdLineArgs $configFile
 
-
-Write-Verbose -Verbose "Executing $bootstrapperPath with arguments $arguments"
-Invoke-BatchScript $bootstrapperPath -Arguments $arguments
+Invoke-BatchScript $bootstrapperPath –Arguments $arguments
 
 
 

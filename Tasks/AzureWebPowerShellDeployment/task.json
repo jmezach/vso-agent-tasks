@@ -13,16 +13,16 @@
   "version": {
     "Major": 1,
     "Minor": 0,
-    "Patch": 15
+    "Patch": 18
   },
   "demands": [
     "azureps"
   ],
-  "minimumAgentVersion": "1.83.0",
+  "minimumAgentVersion": "1.90.0",
   "inputs": [
     {
       "name": "ConnectedServiceName",
-      "type": "connectedService:Azure",
+      "type": "connectedService:Azure:Certificate,UsernamePassword",
       "label": "Azure Subscription",
       "defaultValue": "",
       "required": true,
@@ -71,7 +71,7 @@
     },
     {
       "name": "Package",
-      "type": "string",
+      "type": "filePath",
       "label": "Web Deploy Package",
       "defaultValue": "",
       "helpMarkDown": "Path to the Visual Studio Web Deploy package under the default artifact directory.",
@@ -88,7 +88,7 @@
   "sourceDefinitions": [
     {
         "target": "WebSiteName",
-        "endpoint": "https://management.core.windows.net/$(ConnectedServiceName)/services/webspaces/$(WebSiteLocation)Webspace/sites",
+        "endpoint": "https://management.core.windows.net/$(authKey.SubscriptionId)/services/webspaces/$(WebSiteLocation)Webspace/sites",
         "selector": "xpath://Site/Name",
         "authKey": "$(ConnectedServiceName)"
     }

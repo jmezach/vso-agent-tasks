@@ -4,8 +4,18 @@
     [string]$goals,
     [string]$publishJUnitResults,   
     [string]$testResultsFiles, 
+    [string]$codeCoverageTool,
+    [string]$classFilter,
+    [string]$javaHomeSelection,
     [string]$jdkVersion,
-    [string]$jdkArchitecture
+    [string]$jdkArchitecture,
+    [string]$jdkUserInputPath, 
+	[string]$sqAnalysisEnabled, 
+    [string]$sqConnectedServiceName, 
+    [string]$sqDbDetailsRequired,
+    [string]$sqDbUrl,
+	[string]$sqDbUsername,
+	[string]$sqDbPassword
 )
 
 Write-Verbose 'Entering Maven.ps1'
@@ -14,10 +24,26 @@ Write-Verbose "options = $options"
 Write-Verbose "goals = $goals"
 Write-Verbose "publishJUnitResults = $publishJUnitResults"
 Write-Verbose "testResultsFiles = $testResultsFiles"
+
+$isCoverageEnabled = !$codeCoverageTool.equals("None")
+if($isCoverageEnabled -eq $true)
+{
+    Write-Verbose "codeCoverageTool = $codeCoverageTool" -Verbose
+    Write-Verbose "classFilter = $classFilter" -Verbose
+}
+
+Write-Verbose "javaHomeSelection = $javaHomeSelection"
 Write-Verbose "jdkVersion = $jdkVersion"
 Write-Verbose "jdkArchitecture = $jdkArchitecture"
+Write-Verbose "jdkUserInputPath = $jdkUserInputPath"
 
-#Verify Maven POM file is specified
+Write-Verbose "sqAnalysisEnabled = $sqAnalysisEnabled"
+Write-Verbose "connectedServiceName = $sqConnectedServiceName"
+Write-Verbose "sqDbDetailsRequired = $sqDbDetailsRequired"
+Write-Verbose "dbUrl = $sqDbUrl"
+Write-Verbose "dbUsername = $sqDbUsername"
+
+# Verify Maven POM file is specified
 if(!$mavenPOMFile)
 {
     throw "Maven POM file is not specified"
@@ -28,43 +54,41 @@ import-module "Microsoft.TeamFoundation.DistributedTask.Task.Internal"
 import-module "Microsoft.TeamFoundation.DistributedTask.Task.Common"
 import-module "Microsoft.TeamFoundation.DistributedTask.Task.TestResults"
 
-if($jdkVersion -and $jdkVersion -ne "default")
-{
-    $jdkPath = Get-JavaDevelopmentKitPath -Version $jdkVersion -Arch $jdkArchitecture
-    if (!$jdkPath) 
-    {
-        throw "Could not find JDK $jdkVersion $jdkArchitecture, please make sure the selected JDK is installed properly"
-    }
+. ./mavenHelper.ps1
 
-    Write-Host "Setting JAVA_HOME to $jdkPath"
-    $env:JAVA_HOME = $jdkPath
-    Write-Verbose "JAVA_HOME set to $env:JAVA_HOME"
+
+$buildRootPath = Split-Path $mavenPOMFile -Parent
+$reportDirectoryName = [guid]::NewGuid()
+$reportDirectory = Join-Path $buildRootPath $reportDirectoryName
+$summaryFileName = "jacoco.xml"
+$summaryFile = Join-Path $buildRootPath $reportDirectoryName 
+$summaryFile = Join-Path $summaryFile $summaryFileName
+$CCReportTask = "jacoco:report"
+
+# Enable Code Coverage
+EnableCodeCoverage $isCoverageEnabled $reportDirectory $mavenPOMFile $codeCoverageTool $classFilter $summaryFileName $reportDirectoryName
+
+# Use a specific JDK
+ConfigureJDK $javaHomeSelection $jdkVersion $jdkArchitecture $jdkUserInputPath
+
+# Invoke MVN
+Write-Host "Running Maven..."
+Invoke-Maven -MavenPomFile $mavenPOMFile -Options $options -Goals $goals 
+
+# Publish test results
+PublishTestResults $publishJUnitResults $testResultsFiles
+
+# Publish code coverage
+PublishCodeCoverage  $isCoverageEnabled $mavenPOMFile $CCReportTask $summaryFile $reportDirectory $codeCoverageTool 
+
+if(Test-Path $reportDirectory)
+{
+    # delete any previous code coverage data 
+    rm -r $reportDirectory -force | Out-Null
 }
 
-Write-Verbose "Running Maven..."
-Invoke-Maven -MavenPomFile $mavenPOMFile -Options $options -Goals $goals
-
-# Publish test results files
-$publishJUnitResultsFromAntBuild = Convert-String $publishJUnitResults Boolean
-if($publishJUnitResultsFromAntBuild)
-{
-   # check for JUnit test result files
-    $matchingTestResultsFiles = Find-Files -SearchPattern $testResultsFiles
-    if (!$matchingTestResultsFiles)
-    {
-        Write-Host "No JUnit test results files were found matching pattern '$testResultsFiles', so publishing JUnit test results is being skipped."
-    }
-    else
-    {
-        Write-Verbose "Calling Publish-TestResults"
-        Publish-TestResults -TestRunner "JUnit" -TestResultsFiles $matchingTestResultsFiles -Context $distributedTaskContext
-    }    
-}
-else
-{
-    Write-Verbose "Option to publish JUnit Test results produced by Maven build was not selected and is being skipped."
-}
-
+# Run SonarQube analysis by invoking Maven with the "sonar:sonar" goal
+RunSonarQubeAnalysis $sqAnalysisEnabled $sqConnectedServiceName $sqDbDetailsRequired $sqDbUrl $sqDbUsername $sqDbPassword $options $mavenPOMFile
 
 Write-Verbose "Leaving script Maven.ps1"
 

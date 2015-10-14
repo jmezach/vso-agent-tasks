@@ -2,8 +2,8 @@
     "id": "D353D6A2-E361-4A8F-8D8C-123BEBB71028",
     "name": "RunVisualStudioTestsusingTestAgent",
     "friendlyName": "Visual Studio Test using Test Agent",
-    "description": "Run tests distributedly using multiple test agents on a lab machine group",
-    "helpMarkDown": "[More Information](https://github.com/Microsoft/vso-agent-tasks/blob/master/Tasks/RunDistributedTests/README.md)",
+    "description": "Run tests across multiple test agents on a lab machine group in a distributed fashion",
+    "helpMarkDown": "[More Information](http://go.microsoft.com/fwlink/?LinkId=624389)",
     "category": "Test",
     "visibility": [     
                   "Build",
@@ -13,11 +13,11 @@
     "version": {
         "Major": 1,
         "Minor": 0,
-        "Patch": 4
+        "Patch": 10
     },
     "demands": [
     ],
-    "minimumAgentVersion": "1.83.0",
+    "minimumAgentVersion": "1.88.0",
     "groups": [
         {
             "name": "testMachineGroups",
@@ -39,10 +39,10 @@
         {
             "name": "testMachineGroup",
             "type": "pickList",
-            "label": "Test Machine Group",
+            "label": "Test Machine Group / Azure Resource Group",
             "defaultValue": "",
             "required": true,
-            "helpMarkDown": "Name of the Test Machine Group on which tests need to be run.",
+            "helpMarkDown": "Name of the Test Machine Group or Azure Resource Group on which tests need to be run.",
             "groupName": "testMachineGroups"
         },
         {
@@ -51,7 +51,7 @@
             "label": "Test Drop Location",
             "defaultValue": "",
             "required": true,
-            "helpMarkDown": "Location where the test binaries have been dropped in the agent machine(s) as part of the 'Copy files to Machines' task. System Environment Variables can also be used in location string. e.g., '%systemdrive%\\Tests', '%temp%\\DropLocation' etc.",
+            "helpMarkDown": "Location where the test binaries have been dropped in the agent machine(s) as part of the 'Windows Machine File Copy' or 'Azure File Copy' task. System Environment Variables can also be used in location string. e.g., '%systemdrive%\\Tests', '%temp%\\DropLocation' etc.",
             "groupName": "testSettings"
         },
         {
